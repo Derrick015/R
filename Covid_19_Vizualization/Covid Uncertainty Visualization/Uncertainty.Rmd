@@ -1,0 +1,151 @@
+---
+title: "COVID-19 Assiciative Plots"
+author: "untitled"
+date: "03/04/2021"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    fig_height: 4.5
+    fig_width: 7
+    highlight: tango
+    number_sections: yes
+    theme: readable
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+\newpage
+
+# Introduction
+
+Our World in Data COVID-19 data set contains up-to-date data on confirmed cases, deaths, hospitalizations, testing, and vaccinations as well as other variables of potential interest. The data set was derived from the COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University and can be found here: <https://github.com/CSSEGISandData/COVID-19>. Analyzing this data set will give us some incredible insights into how the covid-19 virus has affected several countries across the globe. We will explore such insights through exploratory data analysis right after we clean and preprocess the data.
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Installing and loading libraries..................................................
+
+if(!require(tidyverse)) install.packages("tidyverse",repos = "http://cran.us.r-project.org") # #Data manipulation and visuals
+library(tidyverse)
+
+devtools::install_github("wilkelab/ungeviz")
+library(ungeviz) 
+
+
+theme_set(theme_classic()) # Classic ggplot theme
+
+```
+
+# Data Structure
+
+In this data set, we have a mix of character and numeric variables. It has 59 variables and 70,645 observations.
+
+```{r, echo=FALSE, message=FALSE, results="hide"}
+# Data importation and structure
+dat <- read.csv("./owid-covid-data.csv")
+str(dat)
+getwd()
+```
+
+\newpage
+
+# Exploratory Data Analysis
+
+
+## A. Average Covid deaths per million vs Percentage of Female Smokers
+
+In the diagram below we show the relationship between average covid deaths per million and the percentage of female smokers in a country. There is a positive relationship between these two variables meaning countries with higher female smokers suffer more covid deaths on average whiles countries with a lower proportion of female smokers suffer fewer covid deaths per million on average. The non-linear curve fits demonstrate this relationship and shows equally likely alternative fits drawn from the posterior distribution.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=7}
+
+dat.GG <- dat %>% filter(!(location %in% c("Africa","Asia","Europe",# This is to remove the continents in location
+                                      "North America","Oceania", 
+                                      "South America","World","European Union")),
+                         continent %in% c("Africa","Asia","Europe", # This is to select the continents
+                                      "North America","Oceania", 
+                                      "South America")) 
+
+
+dat.GG %>%
+  group_by(location,continent) %>%
+  summarise(Deaths.per.Million=mean(new_deaths_per_million, na.rm = T),
+            Percent.Female.Smokers=median(female_smokers,na.rm=T)) %>% 
+  ggplot(aes(x=Deaths.per.Million,y=Percent.Female.Smokers)) +
+  geom_point() +
+  geom_smooth(
+    data = bootstrapper(20),
+    aes(group = .draw),
+    se = FALSE
+  )  +
+  labs(x="Average Covid deaths per million",
+       y="Percentage of Female Smokers")
+
+
+
+```
+
+
+\newpage
+
+## B. Average Cases for the Top Three Infected Countries
+
+This diagram shows the average cases for the top three covid infected countries. These countries are the USA, India and Brazil. The USA takes the lead with the highest case count followed by Brazil and India. Additionally, error bars indicating the standard error and confidence intervals were included. The standard error is the standard deviation of the vector sampling distribution. The confidence interval on the other hand is defined so that there is a specified probability that the mean positive cases for the country lie within it.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=7}
+
+# Top 3 cases per location
+ top.cases <- dat.GG %>%
+  group_by(location) %>%
+  summarise(Cases=sum(new_cases,na.rm=T)) %>%
+  arrange(desc(Cases)) %>%
+  top_n(3) %>%
+   .$location
+ 
+# Calculates mean, sd, se and IC
+dat.stat <- dat.GG %>% 
+  group_by(location) %>%
+  filter(location %in% top.cases) %>%
+  summarise( 
+    n=n(),
+    mean=mean(new_cases,na.rm=T),
+    sd=sd(new_cases,na.rm = T)
+  ) %>%
+  mutate( se=sd/sqrt(n))  %>%
+  mutate( ic=se * qt((1-0.05)/2 + .5, n-1))
+ 
+
+# Standard Error
+ggplot(dat.stat) +
+  geom_bar( aes(x=location, y=mean), stat="identity", fill="skyblue", alpha=0.5) +
+  geom_errorbar( aes(x=location, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.5) +
+  ggtitle("using standard error")
+ 
+# Confidence Interval
+ggplot(dat.stat) +
+  geom_bar( aes(x=location, y=mean), stat="identity", fill="skyblue", alpha=0.5) +
+  geom_errorbar( aes(x=location, ymin=mean-ic, ymax=mean+ic), width=0.4, colour="orange", alpha=0.9, size=1.5) +
+  ggtitle("using confidence interval")
+
+```
+
+
+\newpage
+
+## C. Deaths per Million vs Percentage of Aged Population Over 70
+
+In this diagram, we see a direct relationship between covid deaths per million and the percentage of the aged population over 70 years old. This implies that countries with a more aged population suffer more deaths with countries having a less proportion of the aged population over 70 experiencing fewer deaths. European countries that have a high aged population, for instance, suffer the most deaths with the relatively younger population of Africa having fewer deaths. The fit spline illustrates the positive relationship between these two variables and the confidence band above and below the fitted line represent confidence intervals and uncertainty in an estimate of a curve.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=9, fig.height=6}
+
+dat.GG %>%
+  group_by(location,continent) %>%
+  summarise(Deaths.per.Million=sum(new_deaths_per_million, na.rm = T),
+            Percent.of.aged.70.and.older=median(aged_70_older,na.rm=T)) %>% 
+  ggplot(aes(x=Deaths.per.Million,y=Percent.of.aged.70.and.older))+
+  geom_point(aes(colour=continent)) +
+  geom_smooth() +
+  labs(x="Deaths per million",
+       y="Percentage of Aged Population over 70")
+
+```

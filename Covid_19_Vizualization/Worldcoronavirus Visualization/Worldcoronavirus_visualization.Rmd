@@ -1,0 +1,203 @@
+---
+title: "COVID-19 by Our World in Data"
+author: "untitled"
+date: "25/02/2021"
+output:
+  html_document:
+    fig_height: 4.5
+    fig_width: 7
+    highlight: tango
+    number_sections: yes
+    theme: readable
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+\newpage
+# Introduction
+
+Our World in Data COVID-19 dataset contains up-to-date data on confirmed cases, deaths, hospitalizations, testing, and vaccinations as well as other variables of potential interest. The data set was derived from the COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University and can be found here: <https://github.com/CSSEGISandData/COVID-19>. Analyzing this data set will give us some incredible insights into how the covid-19 virus has affected several countries across the globe. We will explore such insights through exploratory data analysis right after we clean and preprocess the data.
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Installing and loading libraries..................................................
+
+
+if(!require(maps)) install.packages("maps",repos = "http://cran.us.r-project.org") # World Map
+library(maps)
+
+if(!require(tidyverse)) install.packages("tidyverse",repos = "http://cran.us.r-project.org") # #Data manipulation and visuals
+library(tidyverse)
+
+if(!require(plotly)) install.packages("plotly",repos = "http://cran.us.r-project.org") # publication-quality graphs
+library(plotly)
+
+if(!require(webshot)) install.packages("webshot",repos = "http://cran.us.r-project.org") # take screenshots of web pages from R
+webshot::install_phantomjs()
+
+theme_set(theme_classic()) # Set ggplot theme to classic
+```
+
+
+# Data Structure
+In this data set we have a mix of character and numeric variables. It has 59 variables and 70,645 obervations.
+```{r, echo=FALSE, message=FALSE}
+# Data importation and structure
+dat <- read.csv("./owid-covid-data.csv")
+str(dat)
+```
+
+# Data Preprocessing
+
+Tests units is a character variable in our dataset which shows if samples were tested and if other processes were followed. This variable is not of interest in the exploratory data analysis I am about to undertake, therefore it would be removed. Additionally, there are 1,685,771 missing values which are all numeric, these will be replaced with 0.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# Visualising missing data
+# Remove unintresting varible
+dat<-dat %>% select(!tests_units)
+
+# Missing data
+sum(is.na(dat))
+colSums(is.na(dat))
+
+
+# Only missing values are numeric. Replace with 0
+dat[is.na(dat)] <- 0
+```
+
+\newpage
+# Exploratory Data Analysis
+
+## A. Relationship between Population Median Age and R-rate
+The R rate (reproduction rate) is a way of rating coronavirus's ability to spread. R is the number of people that one infected person will pass on a virus to, on average. So if a countries R rate is 2 it means, on average, one person will spread the virus to 2 others. For this analysis, I would like to find out if youthful populations spread the virus at a higher rate. Recent reporting in advanced countries like the USA seems to suggest that youthful elements in a society spread the virus rapidly due to exuberance and opposition to restrictions. Thus, we will investigate if countries with a lower median age have a higher R rate. We would begin by exploring the relationship between these two variables by plotting the median age and reproduction rate of all countries. We will also utilize the geom_smooth function to aid us to detect the relationship within the data.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# 1. Population median age vs R_rate
+
+dat_age_R  <- dat %>% filter(!(location %in% c("Africa","Asia","Europe",# This is to remove the continets in location
+                                      "North America","Oceania", 
+                                      "South America","World","European Union"))) %>%
+  group_by(location,continent) %>%
+  summarise(R_rate = mean(reproduction_rate),
+            med_age = median(median_age)) %>% 
+  filter(!(R_rate==0)) 
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+dat_age_R  %>% ggplot(aes(x= R_rate,y= med_age)) + 
+  geom_point() + geom_smooth(method = "lm") +
+  scale_x_continuous(name="R rate") +
+  scale_y_continuous(name="Median age")
+```
+
+From the diagram above we can see a positive relationship between the median age and the R-rate. This implies that countries with a more aged population tend to spread the virus at a higher rate, holding all other variables constant. However, we can still unearth more insights about our data and get an intrinsic understanding of things. Lets's highlight the continent these data points can be found.
+
+
+```{r, echo=FALSE}
+# 1.1 Population median age vs R_rate highlighting continent
+dat_age_R  %>% ggplot(aes(x= R_rate,y= med_age)) + 
+  geom_point(aes(color=continent)) + 
+  scale_x_continuous(name="R rate") +
+  scale_y_continuous(name="Median Age")
+```
+ From the figure above, we can immediately point out some interesting clusters. Most European countries tend to have a higher median age in the range of 40 to 50 as well as a high R rate concentrated around 1. The African continent on the other hand has countries with the lowest median age around 20 years with an R-rate spread out from 0.4 to 1.1. This does not necessarily imply that the older median age of European countries solely accounts for the high r-rate as there are other variables at play. In the same light, I can not conclude that a more youthful population gives rise to more COVID spread.
+ 
+\newpage
+## B. Cases per Continent
+we will now explore the total numer of cases per continent. Previously we visualized the varying R-rates of counties in differnt continents. Lets see if continents with high R-rates also leads to high cases as that would intuitively be the case.
+```{r, echo=FALSE, message=FALSE, fig.align='center'}
+ # 2. Number of cases per continent
+cases_per_cont <- dat %>%
+  group_by(continent) %>%
+  summarise(total=sum(new_cases)/1000000) %>%
+  filter(continent %in% c("Africa","Asia","Europe",
+                          "North America", "Oceania", "South America"))
+
+cases_per_cont %>% arrange(desc(total)) %>%
+  ggplot(aes(x=reorder(continent,+total),y=total,
+             fill=continent)) +
+  geom_col() +
+  theme_bw() + theme(legend.position="none") +
+  labs(x="Continent", title = 'Number of cases per continent',
+       subtitle = 'Period (Feb 2020 - Feb 2021 )') + 
+  scale_y_continuous(name="Covid_19 cases per million", 
+                     limits=c(0, 35)) +
+  coord_flip()
+```
+
+As expected we can see that the continents that contain countries with high R rates take the lead in COVID cases. Europe and North America have some of the highest cases of about thirty million. Africa on the other hand has around four million cases in total, with Oceania, which consists of Australia and other islands scattered throughout most of the Pacific Ocean, having barely any cases compared to the rest of the continents.
+
+\newpage
+## C. World Map of Coronavirus Death
+A dark but necessary topic we must address is that of death. The coronavirus pandemic has cost us millions of lives around the world. To truly visualize this we will build a map showing the total number of deaths per country. It is important to note that North Korea and Turkmenistan have not released any data on covid cases and death. Data on French Guiana was also not provided in our data set.
+
+```{r, echo=FALSE, message=FALSE,fig.height=10, fig.width=20}
+#3.  World map of Coronavirus death
+covid <- dat
+
+# Updating names in my dataset to suite the world map
+names(covid)[names(covid) == "location"] <- "region"
+covid$region<- ifelse(covid$region=='United States',"USA", covid$region)
+covid$region<- ifelse(covid$region=="Cote d'Ivoire","Ivory Coast", covid$region)
+covid$region<- ifelse(covid$region=="Democratic Republic of Congo",
+                      "Democratic Republic of the Congo", covid$region)
+covid$region<- ifelse(covid$region=="Congo","Republic of Congo", covid$region)
+covid$region<- ifelse(covid$region=="United Kingdom","UK", covid$region)
+covid$region<- ifelse(covid$region=="Czechia","Czech Republic", covid$region)
+covid$region<- ifelse(covid$region=="Eswatini","Swaziland", covid$region)
+covid$region<- ifelse(covid$region=="North Macedonia","Macedonia", covid$region)
+
+covid_world_deaths <- covid %>%
+  group_by(region) %>%
+  summarise(total=sum(new_deaths))
+
+world_data<-map_data('world')
+world_deaths_map <- left_join(world_data, covid_world_deaths, by = "region")
+
+# Create world map
+ggplot(world_deaths_map, aes(long, lat, group = group))+
+  geom_polygon(aes(fill = total), color = "white")+
+  scale_fill_distiller(palette= "OrRd", direction=1)+
+  labs(x="",
+       y="",
+       title = "World COVID Deaths", 
+       fill="Number Of Deaths")+
+  theme_bw()+
+  theme(plot.title = element_text(size=22)
+        ,axis.text.x= element_text(size=15),
+        axis.text.y= element_text(size=15),
+        axis.title=element_text(size=18))
+```
+
+
+\newpage
+## D. Time Series of Countries with the Most Deaths
+From the previous plot, we saw the number of COVID deaths per country. Now we will analyze the top 5 countries with the highest deaths. We will do this by performing a time series analysis to understand the rise in deaths since the inception of this pandemic to February 2021. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE,out.width="200%"}
+# 4. Time Series 
+dat_f <-
+  dat %>% filter(!(location %in% c("Africa","Asia","Europe",# This is to remove the continets in location
+                                 "North America","Oceania", 
+                                 "South America","World","European Union")))
+
+# Top 5 locations with highest deaths
+top_deaths <- dat_f %>% group_by(location) %>%
+  summarise(total=sum(new_deaths)) %>%
+  arrange(desc(total)) %>% top_n(5) %>%
+  pull(location)
+
+# Filter by top 5 locations with highest deaths
+dat_f <- dat_f %>% filter(location %in% top_deaths) %>% 
+  group_by(location,date) %>%
+  summarise(total= total_deaths)
+
+# Change date format
+dat_f$date <- format(as.Date(dat_f$date), "%Y-%m")
+
+# Plot 
+dat_f %>% plot_ly(x = ~date, y = ~total, color = ~location) %>%
+  add_lines()
+```

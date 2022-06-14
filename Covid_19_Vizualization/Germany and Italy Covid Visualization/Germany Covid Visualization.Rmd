@@ -1,0 +1,152 @@
+---
+title: "Germany Covid Visualization"
+author: "untitled"
+date: "27/03/2021"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    fig_height: 4.5
+    fig_width: 7
+    highlight: tango
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+\newpage
+# Introduction
+
+The 2019 Novel Coronavirus (COVID-19) continues to spread in countries around the world. This dataset provides a daily updated number of reported cases & deaths in Germany on the federal state (Bundesland) and county (Landkreis/Stadtkreis) level. The data collected starts from 7th January 2020 to 25th March 2021.  The original data are being collected by Germany's [Robert Koch Institute](https://www.rki.de/EN/Home/homepage_node.html) and can be download through the [National Platform for Geographic Data](https://npgeo-corona-npgeo-de.hub.arcgis.com/).
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Installing and loading libraries..................................................
+
+if(!require(scales)) install.packages("scales",repos = "http://cran.us.r-project.org") # Scale Functions for Visualization
+library(scales)
+
+if(!require(tidyverse)) install.packages("tidyverse",repos = "http://cran.us.r-project.org") # #Data manipulation and visuals
+library(tidyverse)
+
+
+theme_set(theme_classic()) # Set ggplot theme to classic
+```
+
+
+# Data Structure
+In this data set, we have a mix of character and numeric variables. It has 8 variables and 653,911 observations.
+```{r, echo=FALSE, message=FALSE}
+# Data importation and structure
+dat<- read.csv("./Germany covid.csv")
+str(dat)
+```
+
+# Data Preprocessing
+
+15,187 missing data points can be found in the age group and gender variable. The volume of missing data points are insignificant and will be removed. The complete data set now has 639,187 observations and 8 variables.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Missing data per column
+sum(is.na(dat))
+colSums(is.na(dat))
+
+
+# Keep only complete observations
+dat <- dat[complete.cases(dat),]
+
+# Dimension of the dataset with complete data
+dim(dat)
+```
+
+\newpage
+
+# Exploratory Data Analysis
+
+## A. Total cases per state
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#1 Total cases per state
+dat %>%
+  group_by(state) %>% 
+  summarise (cases.per.thousand=sum(cases)/1000) %>%
+  ggplot(aes(state,cases.per.thousand)) + 
+  geom_col() + 
+  coord_flip()
+```
+
+In this diagram, we can see the total amount of covid cases per state in Germany. However, there is no clear order, this will be improved in the next diagram.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# 1.1 Total cases per state with order and color
+dat %>%
+  group_by(state) %>% 
+  summarise (cases.per.thousand=sum(cases)/1000) %>%
+  ggplot(aes(x=reorder(state,+cases.per.thousand),y=cases.per.thousand)) +
+           geom_col(aes(fill=state)) +
+           theme_bw() + theme(legend.position="none") +
+           labs(x = 'State', y = 'Total Cases per thousand',
+                title = 'Total Cases per State in Germany') +
+           coord_flip()
+           
+```
+
+This new diagram shows the ordered cases per state in an ordered fashion. Nordrhein-Westfalen is the state with the highest total cases since the inception of the pandemic. Bremen on the other hand has the lowest amount of total cases.
+
+
+ 
+\newpage
+## B. Cases per Age Group including Gender
+Now we will visualize the cases per age group accounting for gender distribution in each age group. The age group with the highest total cases is the 35-59 age group, with infections split almost equally amount the sexes.
+
+```{r, echo=FALSE, message=FALSE, fig.align='center'}
+# 3 Cases per Age Group including Gender
+dat %>%
+  group_by(gender,age_group) %>% 
+  summarise (cases.per.thousand=sum(cases)/1000) %>%
+  ggplot(aes(age_group,cases.per.thousand,fill=gender)) + 
+  geom_col() +
+  labs(x="Age Group",
+       y="Cases per Thousand",
+       title="Cases per Age Group including Gender")
+```
+
+
+
+\newpage
+## C. Cases per State in Comparison with the Average
+
+By normalizing the cases per state we can visualize which states fall above and below the national average for covid cases.
+
+```{r, echo=FALSE, message=FALSE}
+
+# 3. Diverging Barcharts of cases per state
+min(dat$date)
+max(dat$date)
+gg.dat <- dat %>%
+  group_by(state) %>%
+  summarise (cases.per.thousand=sum(cases)/1000) %>% 
+  mutate(case.mean= round((cases.per.thousand - mean(cases.per.thousand))/sd(cases.per.thousand), 2),
+         case.thres=ifelse(case.mean < 0, "below", "above")) %>%
+  arrange(case.mean)
+
+# Converting the state varibales into factors
+gg.dat$state <- factor(gg.dat$state, levels = gg.dat$state)
+
+# plot 
+ggplot(gg.dat, aes(x=state, y=case.mean, label=case.mean)) + 
+  geom_bar(stat='identity', aes(fill=case.thres), width=.5)  +
+  scale_fill_manual(name="Deaths", 
+                    labels = c("Above Average", "Below Average"), 
+                    values = c("above"="#00ba38", "below"="#f8766d")) + 
+  labs(x= "States",
+       y="Cases",title= "Normalized Cases per State in Germany") + 
+  coord_flip()
+
+```
+
+

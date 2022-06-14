@@ -1,0 +1,124 @@
+---
+title: "Italy Covid Visualization"
+author: "untitled"
+date: "27/03/2021"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    fig_height: 4.5
+    fig_width: 7
+    highlight: tango
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+\newpage
+# Introduction
+
+Coronaviruses are a large family of viruses that may cause illness in animals or humans. In humans, several coronaviruses are known to cause respiratory infections ranging from the common cold to more severe diseases such as Middle East Respiratory Syndrome (MERS) and Severe Acute Respiratory Syndrome (SARS). The most recently discovered coronavirus causes coronavirus disease COVID-19 - World Health Organization
+
+This virus has been spreading rapidly around the world and Italy is one of the most affected countries. This dataset contains total cases from each region and province in Italy. Data is collected by [Sito del Dipartimento della Protezione Civile - Emergenza Coronavirus: la risposta nazionale](http://www.protezionecivile.it/attivita-rischi/rischio-sanitario/emergenze/coronavirus) and is uploaded into this [github repo.](https://github.com/pcm-dpc/COVID-19).
+The data collected starts from 24th February 2020 to 6th December 2020.
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Installing and loading libraries..................................................
+
+if(!require(tidyverse)) install.packages("tidyverse",repos = "http://cran.us.r-project.org") # #Data manipulation and visuals
+library(tidyverse)
+
+
+theme_set(theme_classic()) # Set ggplot theme to classic
+```
+
+
+# Data Structure
+
+In this data set, we have a mix of character, integer and numeric variables. It has 17 variables and 6027 observations.
+
+```{r, echo=FALSE, message=FALSE}
+# Data importation and structure
+dat <- read.csv("./covid19_italy_region.csv")
+str(dat)
+```
+
+
+\newpage
+
+# Exploratory Data Analysis
+
+## A. Distribution of Covid Cases per Regionin Italy
+
+First, let's investigate the distribution of covid cases per region in Italy. We can see from the violin plot that most of the cases per region were centred in the range of 0 to  260,000.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Cases per region
+case.per.region <-
+  dat %>%
+  group_by(RegionName) %>% 
+  summarise (cases.per.thousand=max(TotalPositiveCases)/1000) 
+
+
+# Violin plot
+ggplot(case.per.region, aes(x="", y=cases.per.thousand)) + 
+  geom_violin(fill="purple")+
+  labs(x="",
+       y="Cases per thousand", 
+       title="Distribution of Covid Cases in Italy")+  
+  theme_bw()+
+  theme(plot.title = element_text(size=22)
+        ,axis.text.x= element_text(size=15),
+        axis.text.y= element_text(size=15),
+        axis.title=element_text(size=18))
+```
+
+
+
+\newpage
+
+## B. Total cases per Region
+
+In this diagram, we can see the total amount of covid cases per region in Italy. However, there is no clear order, this will be improved in the next diagram.
+
+```{r, echo=FALSE, message=FALSE, fig.align='center'}
+
+# 2 Cases per Region
+
+case.per.region %>% 
+  ggplot(aes(RegionName,cases.per.thousand)) + 
+  geom_col() + 
+  coord_flip()
+
+```
+
+
+
+\newpage
+
+## C. Ordered total Cases per Region 
+
+This new diagram shows the ordered cases per state in an ordered fashion. Lombardia is the state with the highest total cases followed by Piemonte. Molise on the other hand has the lowest amount of total cases.
+
+```{r, echo=FALSE, message=FALSE}
+
+# 3 dot Plot of cases per region in italy
+ggplot(case.per.region, aes(x=reorder(RegionName,+cases.per.thousand),
+                            y= cases.per.thousand)) + 
+  geom_point(col="purple", size=3) +   # Draw points
+  geom_segment(aes(x=RegionName, 
+                   xend=RegionName, 
+                   y=min(cases.per.thousand), 
+                   yend=max(cases.per.thousand)), 
+               linetype="dashed", 
+               size=0.1) +   # Draw dashed lines
+  labs(x="Region",
+       y="Cases Per Thousand",
+       title="Cases per Region in Italy") +  
+  coord_flip()
+
+```
+
+

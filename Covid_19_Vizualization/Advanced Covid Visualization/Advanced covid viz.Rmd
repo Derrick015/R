@@ -1,0 +1,222 @@
+---
+title: "Advanced Covid Visualization"
+author: "Untitled"
+date: "April 16, 2021"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    fig_height: 4.5
+    fig_width: 7
+    highlight: tango
+    number_sections: yes
+    theme: readable
+    toc: yes
+---
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Installing packages and loading libraries
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+
+if(!require(usmap)) install.packages("usmap", repos = "http://cran.us.r-project.org")
+library(usmap)
+
+if (!require(openintro)) install.packages('openintro', repos = "http://cran.us.r-project.org") 
+library(openintro)
+
+if (!require(maps)) install.packages('maps', repos = "http://cran.us.r-project.org") 
+library(maps)
+
+if (!require(pacman)) install.packages('pacman', repos = "http://cran.us.r-project.org") 
+library(pacman)
+
+if (!require(pacman)) install.packages('pacman', repos = "http://cran.us.r-project.org") 
+library(ggrepel)
+
+if (!require(kableExtra)) install.packages('kableExtra', repos = "http://cran.us.r-project.org") 
+library(kableExtra)
+
+theme_set(theme_classic()) 
+
+
+```
+
+
+\newpage
+
+# Introduction
+
+This data was obtained from [COVID-19 Tracking project](https://covidtracking.com/) and [NYTimes](https://github.com/nytimes/covid-19-data). The data provides several observations on death and cases for states in the USA. This data contains covid information from January 2020 to April 2021. In this project, we will explore COVID deaths in the USA and gain some insights.
+
+
+# Data Importation and Structure
+
+This data set has 6 variables with 22,509 observations. It is made up of a mixture of numbers, characters, and dates.
+```{r, message=FALSE,results='hide',echo=FALSE}
+covid_usa<-read_csv("./Us_state.csv")
+dim(covid_usa)
+str(covid_usa)
+```
+
+
+# Data Preprocessing
+
+## Missing data
+
+The data has no missing data points.
+```{r, message=FALSE,echo=FALSE}
+sum(is.na(covid_usa))
+```
+
+\newpage
+
+# Exploratory Data Analysis
+
+## 1. Growth in Total Deaths for the 1st Quarter 2021
+
+In this diagram, we look at the total changes in death for the top 5 infected states. We see that California had the steepest slope indicating the highest marginal deaths.
+
+```{r, message=FALSE, echo=FALSE, results='hide'}
+# Top 5 most infected states
+covid_usa %>%
+  group_by(state) %>%
+  summarise(total.deaths=max(deaths)) %>%
+  arrange(desc(total.deaths)) %>%
+  top_n(5) %>%
+  .$state
+```
+
+```{r, message=FALSE, echo=FALSE,fig.height=6,fig.width=6}
+
+# Earliest Infections in the quater
+earliest <- covid_usa %>%
+  filter(date=="2021-01-14")
+
+# Most recent Infections in the quater
+lastest <- covid_usa %>%
+  filter(date=="2021-04-14")
+
+# Bind them together
+d<- rbind(earliest,lastest)
+
+# Filter for top 5 infected states
+dat.date<- d %>%
+  select(c(date,state,deaths)) %>%
+  filter(state %in% c("California","New York", "Texas","Florida","Pennsylvania" ))
+
+# Convert date and state into factors
+dat.date$date <- as.factor(dat.date$date)
+dat.date$state <- as.factor(dat.date$state)
+
+# Plot
+ggplot(data = dat.date, aes(x = date, y = deaths, group = state)) +
+  geom_line(aes(color = state, alpha = 1), size = 2) +
+  geom_point(aes(color = state, alpha = 1), size = 4) +
+  #  Labelling as desired
+  labs( x="Date",
+        y="Deaths",
+    subtitle = "Top five states in terms of death")
+
+```
+
+\newpage
+
+## 2. Total Deaths per State
+
+Next, we will have a look at the total death per state. We can easily see that some states stand out. This includes California, Texas and New York.
+
+```{r, message=FALSE, echo=FALSE,fig.height=8,fig.width=10}
+p_load(tidyverse, ggplot2)
+
+covid_us_deaths<-covid_usa%>%
+  group_by(state)%>%
+  summarise(total=max(deaths)/1000) 
+
+# create id
+id <- 1:55
+
+covid.us.death <- cbind(id,covid_us_deaths)
+
+# ----- This section prepares a data frame for labels ---- #
+# Get the name and the y position of each label
+label_data <- covid.us.death
+ 
+# calculate the ANGLE of the labels
+number_of_bar <- nrow(label_data)
+angle <-  90 - 360 * (label_data$id-0.5) /number_of_bar     # I substract 0.5 because the letter must have the angle of the center of the bars. Not extreme right(1) or extreme left (0)
+ 
+# calculate the alignment of labels: right or left
+# If I am on the left part of the plot, my labels have currently an angle < -90
+label_data$hjust<-ifelse( angle < -90, 1, 0)
+ 
+# flip angle BY to make them readable
+label_data$angle<-ifelse(angle < -90, angle+180, angle)
+# ----- ------------------------------------------- ---- #
+
+
+# Start the plot
+plot.gg <- ggplot(covid_us_deaths, aes(x=as.factor(id), y=total)) +       # Note that id is a factor. If x is numeric, there is some space between the first bar
+  
+  # This add the bars with a blue color
+  geom_bar(stat="identity", fill=alpha("skyblue", 0.7)) +
+  
+  # Limits of the plot = very important. The negative value controls the size of the inner circle, the positive one is useful to add size over each bar
+  ylim(-100,120) +
+  
+  # Custom the theme: no axis title and no cartesian grid
+  theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = unit(rep(-1,4), "cm")      # Adjust the margin to make in sort labels are not truncated!
+  ) +
+  
+  # This makes the coordinate polar instead of cartesian.
+  coord_polar(start = 0) +
+  
+  # Add the labels, using the label_data dataframe that we have created before
+  geom_text(data=label_data, aes(x=id, y=total+20, label=state, hjust=hjust), 
+            color="blue", fontface="bold",alpha=0.8,
+            size=2.2, angle= label_data$angle, 
+            inherit.aes = FALSE ) 
+ 
+plot.gg
+
+```
+
+
+\newpage
+
+## 3. Map of Total Deaths
+
+We can also visualize total infections through a map. Following the previous analysis, we can see that regions like California, Texas and New York instantly stick out as states with the highest total deaths.
+
+```{r,echo=FALSE, message=FALSE,fig.height=6,fig.width=10}
+
+covid_usa$region<-tolower(covid_usa$state)
+covid_us_deaths<-covid_usa%>%group_by(region)%>%summarise(total=max(deaths))
+
+us_states = map_data("state")
+deaths_map <- left_join(us_states, covid_us_deaths, by = "region")
+
+ggplot(deaths_map, aes(long, lat, group = group))+
+  geom_polygon(aes(fill = total), color = "white")+
+  scale_fill_viridis_c(option = "C")+
+  labs(x="",
+       y="",
+       title = "COVID Deaths in Unites States", 
+       fill=" Total Of Deaths")+
+theme_bw()+
+theme(plot.title = element_text(size=22)
+      ,axis.text.x= element_text(size=15),
+       axis.text.y= element_text(size=15),
+        axis.title=element_text(size=18))
+```
+
+

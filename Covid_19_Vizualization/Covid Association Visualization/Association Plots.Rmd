@@ -1,0 +1,127 @@
+---
+title: "COVID-19 Assiciative Plots"
+author: "untitled"
+date: "03/04/2021"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    fig_height: 4.5
+    fig_width: 7
+    highlight: tango
+    number_sections: yes
+    theme: readable
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+\newpage
+
+# Introduction
+
+Our World in Data COVID-19 data set contains up-to-date data on confirmed cases, deaths, hospitalizations, testing, and vaccinations as well as other variables of potential interest. The data set was derived from the COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University and can be found here: <https://github.com/CSSEGISandData/COVID-19>. Analyzing this data set will give us some incredible insights into how the covid-19 virus has affected several countries across the globe. We will explore such insights through exploratory data analysis right after we clean and preprocess the data.
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Installing and loading libraries..................................................
+
+if (!require(corrplot)) install.packages('corrplot',repos = "http://cran.us.r-project.org") # Correlation Plots
+library(corrplot)
+
+if(!require(tidyverse)) install.packages("tidyverse",repos = "http://cran.us.r-project.org") # #Data manipulation and visuals
+
+theme_set(theme_classic()) # Classic ggplot theme
+
+```
+
+# Data Structure
+
+In this data set we have a mix of character and numeric variables. It has 59 variables and 70,645 obervations.
+
+```{r, echo=FALSE, message=FALSE}
+# Data importation and structure
+dat <- read.csv("./owid-covid-data.csv")
+str(dat)
+
+```
+
+\newpage
+
+# Exploratory Data Analysis
+
+## A. Highly correlated variables to Covid 19 cases
+
+In this correlogram, we see the most correlated variables to new covid cases. We maintained variables that have a strong correlation with the new covid cases variable, that is, we only kept variables with a correlation greater than the absolute of 0.8. These variables were new_cases, new_cases_smoothed, icu_patients, new_deaths, new_deaths_smoothed, weekly_hosp_admissions and hosp_patients, total_deaths, total_cases, new_tests and new_tests_smoothed.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE,fig.width=10,fig.height=11}
+
+# Correlogram
+
+### Checking for most correlated variables to the new cases variable
+
+numericVars <- which(sapply(dat, is.numeric)) #index vector numeric variables
+
+dat_numVar <- dat[, numericVars]
+cor_numVar <- cor(dat_numVar, use="pairwise.complete.obs") #correlations of all numeric variables
+
+#sort on decreasing correlations with New cases
+cor_sorted <- as.matrix(sort(cor_numVar[,'new_cases'], decreasing = TRUE))
+#select only high correlations
+CorHigh <- names(which(apply(cor_sorted, 1, function(x) abs(x)>0.80)))
+cor_numVar <- cor_numVar[CorHigh, CorHigh]
+
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+```
+
+\newpage
+
+## B. Relationship between GDP per capita and life expectancy
+
+In the diagram below we show the relationship between GDP per capita and life expectancy across the world. Countries with lower GDP per capita, mostly found in Africa, have a lower life expectancy, whiles countries with a higher GDP per capita, like those found in Europe, have a higher life expectancy. However, it is interesting to note that more prosperous countries with higher GDP per capita and life expectancy suffered more covid cases than less advanced countries with lower GDP per capita and life expectancy.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=7}
+# Bubble plot
+dat.GG <- dat %>% filter(!(location %in% c("Africa","Asia","Europe",# This is to remove the continents in location
+                                      "North America","Oceania", 
+                                      "South America","World","European Union")),
+                         continent %in% c("Africa","Asia","Europe", # Remove blank variable
+                                      "North America","Oceania", 
+                                      "South America")) 
+dat.GG %>% 
+  group_by(continent,location) %>%
+  summarise(GDP.Per.Capita=median(gdp_per_capita),
+            Cases.per.thousand=sum(new_cases)/1000,
+            life.expectancy=median(life_expectancy)) %>%
+  ggplot(aes(x=GDP.Per.Capita,
+             y=life.expectancy,
+             color=continent,
+             size=Cases.per.thousand)) +
+    scale_size(range = c(1, 20), name="cases per thousand")+
+  geom_jitter(alpha=0.40) +
+  xlab("GDP per Capita") +
+  ylab("Life Expectancy")
+```
+
+\newpage
+
+## C. Relationship between Handwashing Facilities and Extreme Poverty
+
+In this diagram we will explore the relationship between handwashing facilities and extreme poverty. Countries that are extremely poor like those in Africa, have the least amount of handwashing facilities, while those in richer countries have more hand washing facilities. There is an inverse relationship between extreme poverty and handwashing facilities as illustrated by the regression line. Paradoxically, countries that are well of and have a lot of hand washing facilities seem to suffer higher positive cases of the coronavirus, countries in Asia and South America stand out in this regard. On the other hand, countries in African, with fewer hand washing facilities, had a lower positive case count.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=9, fig.height=6}
+
+# Scatter plot
+
+dat.GG %>% 
+  group_by(continent,location) %>%
+  summarise(extreme_poverty=median(extreme_poverty),
+            handwashing.fac=median(handwashing_facilities),
+            cases.per.thousand=sum(new_cases)/1000)%>% 
+  ggplot(aes(handwashing.fac, extreme_poverty))+
+  geom_point(aes(color=continent, shape= continent, size=cases.per.thousand)) +
+  geom_smooth() +
+  labs(x="Handwashing Facilities",
+       y="Extreme Poverty")
+
+```
